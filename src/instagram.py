@@ -121,18 +121,15 @@ class InstagramClient:
                 print(f"  Account insights error (reach): {e}")
 
         try:
-            since = int((datetime.now() - timedelta(days=7)).timestamp())
-            until = int(datetime.now().timestamp())
             data = self._get(f"{self.user_id}/insights", {
                 "metric": "profile_views",
                 "period": "day",
+                "metric_type": "total_value",
                 "since": since,
                 "until": until,
             })
             for metric in data.get("data", []):
-                vals = metric.get("values", [])
-                if vals:
-                    result[metric["name"]] = sum(v.get("value", 0) for v in vals)
+                result[metric["name"]] = metric.get("total_value", {}).get("value", 0)
         except HTTPError as e:
             try:
                 detail = e.response.json().get("error", {})
