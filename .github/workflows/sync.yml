@@ -10,7 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      secrets: write  # Needed for auto token refresh
 
     steps:
       - uses: actions/checkout@v4
