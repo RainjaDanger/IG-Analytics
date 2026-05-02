@@ -91,14 +91,15 @@ class InstagramClient:
     def get_account_insights(self):
         try:
             data = self._get(f"{self.user_id}/insights", {
-                "metric": "reach,impressions,profile_views",
+                "metric": "reach,profile_views",
                 "period": "week",
             })
             result = {}
             for metric in data.get("data", []):
                 vals = metric.get("values", [])
                 if vals:
-                    result[metric["name"]] = vals[-1]["value"]
+                    result[metric["name"]] = max(v.get("value", 0) for v in vals)
+            print(f"  Account insights: {result}")
             return result
         except HTTPError as e:
             try:

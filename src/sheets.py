@@ -62,6 +62,56 @@ class SheetsClient:
                 ).execute()
                 print(f"  Added headers to '{name}'")
 
+    def apply_score_formatting(self):
+        meta = self.sheets.get(
+            spreadsheetId=self.ss_id,
+            fields="sheets(properties(sheetId,title),conditionalFormats)"
+        ).execute()
+
+        sheet_id = None
+        existing_indices = []
+        score_col = POST_HEADERS.index("Score")
+
+        for s in meta["sheets"]:
+            if s["properties"]["title"] == POST_SHEET:
+                sheet_id = s["properties"]["sheetId"]
+                for i, rule in enumerate(s.get("conditionalFormats", [])):
+                    for r in rule.get("ranges", []):
+                        if r.get("startColumnIndex") == score_col:
+                            existing_indices.append(i)
+                            break
+                break
+
+        if sheet_id is None:
+            return
+
+        requests = []
+        for idx in sorted(existing_indices, reverse=True):
+            requests.append({"deleteConditionalFormatRule": {"sheetId": sheet_id, "index": idx}})
+
+        requests.append({
+            "addConditionalFormatRule": {
+                "rule": {
+                    "ranges": [{
+                        "sheetId": sheet_id,
+                        "startRowIndex": 1,
+                        "startColumnIndex": score_col,
+                        "endColumnIndex": score_col + 1,
+                    }],
+                    "gradientRule": {
+                        "minpoint": {"color": {"red": 1.0, "green": 1.0, "blue": 1.0}, "type": "MIN"},
+                        "maxpoint": {"color": {"red": 0.204, "green": 0.659, "blue": 0.325}, "type": "MAX"},
+                    }
+                },
+                "index": 0
+            }
+        })
+
+        self.sheets.batchUpdate(
+            spreadsheetId=self.ss_id,
+            body={"requests": requests}
+        ).execute()
+
     def get_existing_post_urls(self):
         """Returns {permalink: row_number} for all existing posts."""
         result = self.sheets.values().get(

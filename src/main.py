@@ -81,6 +81,7 @@ def main():
     # Ensure Post Performance and Weekly Metrics tabs exist
     print("Checking sheet structure...")
     sheets.ensure_sheets_exist()
+    sheets.apply_score_formatting()
 
     # --- Posts ---
     print("Fetching posts from Instagram...")
@@ -137,7 +138,7 @@ def main():
     sheets.upsert_weekly_row({
         "week_start":    week_start.strftime("%b-%d"),
         "week_end":      week_end.strftime("%b-%d"),
-        "reach_total":   account.get("impressions", 0),
+        "reach_total":   account.get("reach", 0),
         "organic_reach": account.get("reach", 0),
         "profile_views": account.get("profile_views", 0),
         "followers":     followers,
