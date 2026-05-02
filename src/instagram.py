@@ -7,7 +7,7 @@ BASE = "https://graph.facebook.com/v21.0"
 
 class InstagramClient:
     def __init__(self, token, user_id, app_id, app_secret):
-        self.token = token
+        self.token = token.strip()  # remove any accidental whitespace/newlines
         self.user_id = user_id
         self.app_id = app_id
         self.app_secret = app_secret
