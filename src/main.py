@@ -96,7 +96,7 @@ def main():
             views = insights.get("video_views", 0)
             thumb_url = post.get("thumbnail_url") or post.get("media_url", "")
         else:
-            views = insights.get("impressions", 0)
+            views = insights.get("reach", 0)
             thumb_url = post.get("media_url", "")
 
         posts_data.append({

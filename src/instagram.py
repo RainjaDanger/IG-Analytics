@@ -59,11 +59,11 @@ class InstagramClient:
 
     def get_post_insights(self, media_id, media_type):
         if media_type in ("VIDEO", "REEL"):
-            metrics = "impressions,reach,saved,video_views"
+            metrics = "reach,saved,video_views"
         elif media_type == "CAROUSEL_ALBUM":
-            metrics = "carousel_album_impressions,carousel_album_reach,carousel_album_saved"
+            metrics = "carousel_album_reach,carousel_album_saved"
         else:
-            metrics = "impressions,reach,saved"
+            metrics = "reach,saved"
 
         try:
             data = self._get(f"{media_id}/insights", {"metric": metrics})
