@@ -1,4 +1,5 @@
 import requests
+from requests.exceptions import HTTPError
 from datetime import datetime
 
 BASE = "https://graph.facebook.com/v21.0"
@@ -72,8 +73,15 @@ class InstagramClient:
                 values = item.get("values", [{}])
                 result[name] = values[0].get("value", 0) if values else item.get("value", 0)
             return result
+        except HTTPError as e:
+            try:
+                detail = e.response.json().get("error", {})
+                print(f"  Insights error for {media_id} ({media_type}): [{detail.get('code')}] {detail.get('message')}")
+            except Exception:
+                print(f"  Insights error for {media_id} ({media_type}): {e.response.status_code} {e.response.text[:200]}")
+            return {}
         except Exception as e:
-            print(f"  Insights error for {media_id}: {e}")
+            print(f"  Insights error for {media_id} ({media_type}): {e}")
             return {}
 
     def get_account_insights(self):
@@ -88,6 +96,13 @@ class InstagramClient:
                 if vals:
                     result[metric["name"]] = vals[-1]["value"]
             return result
+        except HTTPError as e:
+            try:
+                detail = e.response.json().get("error", {})
+                print(f"  Account insights error: [{detail.get('code')}] {detail.get('message')}")
+            except Exception:
+                print(f"  Account insights error: {e.response.status_code} {e.response.text[:200]}")
+            return {}
         except Exception as e:
             print(f"  Account insights error: {e}")
             return {}

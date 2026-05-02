@@ -102,7 +102,7 @@ class SheetsClient:
                 row_num = existing[url]
                 formula_cols = [
                     f"=IMAGE(I{row_num})",
-                    f"=MAX(1,INT(TODAY()-J{row_num}))",
+                    f"=MAX(1,INT(TODAY()-DATEVALUE(J{row_num})))",
                     f'=IFERROR(((B{row_num}*10)+(C{row_num}*20)+D{row_num})/M{row_num},"")',
                 ]
                 # Update data columns and refresh formulas (never touches Hook/Format in O:P)
@@ -115,7 +115,7 @@ class SheetsClient:
                 next_row += 1
                 formula_cols = [
                     f"=IMAGE(I{row_num})",
-                    f"=MAX(1,INT(TODAY()-J{row_num}))",
+                    f"=MAX(1,INT(TODAY()-DATEVALUE(J{row_num})))",
                     f'=IFERROR(((B{row_num}*10)+(C{row_num}*20)+D{row_num})/M{row_num},"")',
                 ]
                 updates.append({
