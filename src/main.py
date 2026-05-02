@@ -139,7 +139,7 @@ def main():
         "week_start":    week_start.strftime("%b-%d"),
         "week_end":      week_end.strftime("%b-%d"),
         "reach_total":   account.get("reach", 0),
-        "organic_reach": account.get("reach", 0),
+        "organic_reach": account.get("organic_reach", 0),
         "profile_views": account.get("profile_views", 0),
         "followers":     followers,
         "net_follows":   net_follows,

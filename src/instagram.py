@@ -1,6 +1,6 @@
 import requests
 from requests.exceptions import HTTPError
-from datetime import datetime
+from datetime import datetime, timedelta
 
 BASE = "https://graph.facebook.com/v21.0"
 
@@ -90,15 +90,29 @@ class InstagramClient:
 
     def get_account_insights(self):
         result = {}
+        since = int((datetime.now() - timedelta(days=7)).timestamp())
+        until = int(datetime.now().timestamp())
+
         try:
             data = self._get(f"{self.user_id}/insights", {
                 "metric": "reach",
-                "period": "week",
+                "period": "day",
+                "metric_type": "total_value",
+                "breakdown": "media_product_type",
+                "since": since,
+                "until": until,
             })
             for metric in data.get("data", []):
-                vals = metric.get("values", [])
-                if vals:
-                    result[metric["name"]] = max(v.get("value", 0) for v in vals)
+                total = 0
+                organic = 0
+                for breakdown in metric.get("total_value", {}).get("breakdowns", []):
+                    for item in breakdown.get("results", []):
+                        val = item.get("value", 0)
+                        total += val
+                        if item.get("dimension_values", [""])[0] != "AD":
+                            organic += val
+                result["reach"] = total
+                result["organic_reach"] = organic
         except HTTPError as e:
             try:
                 detail = e.response.json().get("error", {})
@@ -107,13 +121,18 @@ class InstagramClient:
                 print(f"  Account insights error (reach): {e}")
 
         try:
+            since = int((datetime.now() - timedelta(days=7)).timestamp())
+            until = int(datetime.now().timestamp())
             data = self._get(f"{self.user_id}/insights", {
                 "metric": "profile_views",
-                "period": "week",
-                "metric_type": "total_value",
+                "period": "day",
+                "since": since,
+                "until": until,
             })
             for metric in data.get("data", []):
-                result[metric["name"]] = metric.get("total_value", {}).get("value", 0)
+                vals = metric.get("values", [])
+                if vals:
+                    result[metric["name"]] = sum(v.get("value", 0) for v in vals)
         except HTTPError as e:
             try:
                 detail = e.response.json().get("error", {})
