@@ -89,18 +89,40 @@ class InstagramClient:
             return {}
 
     def get_account_insights(self):
+        result = {}
         try:
             data = self._get(f"{self.user_id}/insights", {
-                "metric": "reach,profile_views",
+                "metric": "reach",
                 "period": "week",
             })
-            result = {}
             for metric in data.get("data", []):
                 vals = metric.get("values", [])
                 if vals:
                     result[metric["name"]] = max(v.get("value", 0) for v in vals)
-            print(f"  Account insights: {result}")
-            return result
+        except HTTPError as e:
+            try:
+                detail = e.response.json().get("error", {})
+                print(f"  Account insights error (reach): [{detail.get('code')}] {detail.get('message')}")
+            except Exception:
+                print(f"  Account insights error (reach): {e}")
+
+        try:
+            data = self._get(f"{self.user_id}/insights", {
+                "metric": "profile_views",
+                "period": "week",
+                "metric_type": "total_value",
+            })
+            for metric in data.get("data", []):
+                result[metric["name"]] = metric.get("total_value", {}).get("value", 0)
+        except HTTPError as e:
+            try:
+                detail = e.response.json().get("error", {})
+                print(f"  Account insights error (profile_views): [{detail.get('code')}] {detail.get('message')}")
+            except Exception:
+                print(f"  Account insights error (profile_views): {e}")
+
+        print(f"  Account insights: {result}")
+        return result
         except HTTPError as e:
             try:
                 detail = e.response.json().get("error", {})
