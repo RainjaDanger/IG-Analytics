@@ -123,16 +123,6 @@ class InstagramClient:
 
         print(f"  Account insights: {result}")
         return result
-        except HTTPError as e:
-            try:
-                detail = e.response.json().get("error", {})
-                print(f"  Account insights error: [{detail.get('code')}] {detail.get('message')}")
-            except Exception:
-                print(f"  Account insights error: {e.response.status_code} {e.response.text[:200]}")
-            return {}
-        except Exception as e:
-            print(f"  Account insights error: {e}")
-            return {}
 
     def get_follower_count(self):
         try:
