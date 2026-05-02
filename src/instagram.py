@@ -137,7 +137,6 @@ class InstagramClient:
             except Exception:
                 print(f"  Account insights error (profile_views): {e}")
 
-        print(f"  Account insights: {result}")
         return result
 
     def get_follower_count(self):
