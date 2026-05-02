@@ -100,10 +100,15 @@ class SheetsClient:
 
             if url in existing:
                 row_num = existing[url]
-                # Update only API-sourced columns (A:K), never touch Hook/Format (O:P)
+                formula_cols = [
+                    f"=IMAGE(I{row_num})",
+                    f"=MAX(1,INT(TODAY()-J{row_num}))",
+                    f'=IFERROR(((B{row_num}*10)+(C{row_num}*20)+D{row_num})/M{row_num},"")',
+                ]
+                # Update data columns and refresh formulas (never touches Hook/Format in O:P)
                 updates.append({
-                    "range": f"'{POST_SHEET}'!A{row_num}:K{row_num}",
-                    "values": [data_cols]
+                    "range": f"'{POST_SHEET}'!A{row_num}:N{row_num}",
+                    "values": [data_cols + formula_cols]
                 })
             else:
                 row_num = next_row
@@ -111,7 +116,7 @@ class SheetsClient:
                 formula_cols = [
                     f"=IMAGE(I{row_num})",
                     f"=MAX(1,INT(TODAY()-J{row_num}))",
-                    f'=IFERROR(((B{row_num}*10)+(C{row_num}*20)+D{row_num})/N{row_num},"")',
+                    f'=IFERROR(((B{row_num}*10)+(C{row_num}*20)+D{row_num})/M{row_num},"")',
                 ]
                 updates.append({
                     "range": f"'{POST_SHEET}'!A{row_num}:N{row_num}",
@@ -127,6 +132,21 @@ class SheetsClient:
         added = sum(1 for p in posts_data if p["permalink"] not in existing)
         updated = len(posts_data) - added
         return added, updated
+
+    def get_previous_follower_count(self, current_week_start):
+        """Returns the follower count from the most recent completed week."""
+        result = self.sheets.values().get(
+            spreadsheetId=self.ss_id,
+            range=f"'{WEEKLY_SHEET}'!A:G"
+        ).execute()
+        rows = result.get("values", [])
+        for row in reversed(rows[1:]):
+            if row and row[0] != current_week_start and len(row) >= 6:
+                try:
+                    return int(row[5])
+                except (ValueError, IndexError):
+                    pass
+        return None
 
     def upsert_weekly_row(self, week_data):
         result = self.sheets.values().get(

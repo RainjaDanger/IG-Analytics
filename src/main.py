@@ -1,5 +1,4 @@
 import os
-import sys
 from datetime import datetime, timedelta, date
 
 from instagram import InstagramClient
@@ -122,20 +121,13 @@ def main():
 
     # --- Weekly metrics ---
     print("Fetching weekly account metrics...")
-    week_start, week_end, since_ts, until_ts = get_week_bounds()
+    week_start, week_end, _, _ = get_week_bounds()
 
-    account = ig.get_account_insights(since_ts, until_ts)
-    follower_series = ig.get_follower_count_series(since_ts, until_ts)
+    account = ig.get_account_insights()
+    followers = ig.get_follower_count()
 
-    if len(follower_series) >= 2:
-        followers = follower_series[-1]["value"]
-        net_follows = follower_series[-1]["value"] - follower_series[0]["value"]
-    elif follower_series:
-        followers = follower_series[-1]["value"]
-        net_follows = 0
-    else:
-        followers = 0
-        net_follows = 0
+    prev_followers = sheets.get_previous_follower_count(week_start.strftime("%b-%d"))
+    net_follows = (followers - prev_followers) if prev_followers is not None else 0
 
     sheets.upsert_weekly_row({
         "week_start":    week_start.strftime("%b-%d"),

@@ -76,36 +76,26 @@ class InstagramClient:
             print(f"  Insights error for {media_id}: {e}")
             return {}
 
-    def get_account_insights(self, since_ts, until_ts):
+    def get_account_insights(self):
         try:
             data = self._get(f"{self.user_id}/insights", {
                 "metric": "reach,impressions,profile_views",
                 "period": "week",
-                "since": since_ts,
-                "until": until_ts
             })
             result = {}
             for metric in data.get("data", []):
                 vals = metric.get("values", [])
                 if vals:
-                    result[metric["name"]] = vals[0]["value"]
+                    result[metric["name"]] = vals[-1]["value"]
             return result
         except Exception as e:
             print(f"  Account insights error: {e}")
             return {}
 
-    def get_follower_count_series(self, since_ts, until_ts):
+    def get_follower_count(self):
         try:
-            data = self._get(f"{self.user_id}/insights", {
-                "metric": "follower_count",
-                "period": "day",
-                "since": since_ts,
-                "until": until_ts
-            })
-            for metric in data.get("data", []):
-                if metric["name"] == "follower_count":
-                    return metric.get("values", [])
-            return []
+            data = self._get(self.user_id, {"fields": "followers_count"})
+            return data.get("followers_count", 0)
         except Exception as e:
             print(f"  Follower count error: {e}")
-            return []
+            return 0
