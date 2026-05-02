@@ -6,7 +6,6 @@ from sheets import SheetsClient
 
 
 def update_github_secret(new_token):
-    """Re-stores the refreshed token into GitHub Actions secrets."""
     import base64
     import requests
 
@@ -53,9 +52,63 @@ def get_week_bounds():
     today = date.today()
     week_start = today - timedelta(days=today.weekday())  # Monday
     week_end = week_start + timedelta(days=6)             # Sunday
-    since_ts = int(datetime.combine(week_start, datetime.min.time()).timestamp())
-    until_ts = int(datetime.combine(week_end + timedelta(days=1), datetime.min.time()).timestamp())
-    return week_start, week_end, since_ts, until_ts
+    return week_start, week_end
+
+
+def generate_ai_insights(posts_data, week_start, week_end):
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        return None
+    try:
+        import anthropic
+
+        scored = []
+        for p in posts_data:
+            try:
+                days = max(1, (date.today() - date.fromisoformat(p["post_date"])).days)
+                score = ((p["likes"] * 10) + (p["comments"] * 20) + p["views"]) / days
+                if score > 0:
+                    scored.append({**p, "_score": score, "_days": days})
+            except Exception:
+                pass
+
+        top = sorted(scored, key=lambda x: x["_score"], reverse=True)[:5]
+        if not top:
+            return None
+
+        posts_text = ""
+        for i, p in enumerate(top, 1):
+            caption = (p["caption"] or "")[:200]
+            posts_text += (
+                f"\nPost {i} — {p['media_type']} (score {p['_score']:.0f})\n"
+                f"Likes: {p['likes']} | Comments: {p['comments']} | "
+                f"Views: {p['views']} | Reach: {p['reach']} | Saves: {p['saves']} | "
+                f"Days live: {p['_days']}\n"
+                f"Caption: {caption}{'...' if len(p['caption'] or '') > 200 else ''}\n"
+            )
+
+        client = anthropic.Anthropic(api_key=api_key)
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=800,
+            messages=[{
+                "role": "user",
+                "content": (
+                    f"You are analyzing Instagram performance data for a fitness/performance coaching account. "
+                    f"Here are the top 5 posts for the week of {week_start} to {week_end}:\n"
+                    f"{posts_text}\n"
+                    "In under 300 words, cover:\n"
+                    "1. What these posts have in common (format, content themes, tone)\n"
+                    "2. What's driving their performance (saves, comments, reach patterns)\n"
+                    "3. 2-3 specific recommendations for next week's content\n\n"
+                    "Be direct and practical."
+                )
+            }]
+        )
+        return response.content[0].text
+    except Exception as e:
+        print(f"  AI insights error: {e}")
+        return None
 
 
 def main():
@@ -78,7 +131,7 @@ def main():
         new_token = ig.refresh_token()
         update_github_secret(new_token)
 
-    # Ensure Post Performance and Weekly Metrics tabs exist
+    # Ensure all tabs exist with correct structure
     print("Checking sheet structure...")
     sheets.ensure_sheets_exist()
     sheets.apply_score_formatting()
@@ -87,6 +140,8 @@ def main():
     print("Fetching posts from Instagram...")
     posts = ig.get_posts()
     print(f"Found {len(posts)} posts, fetching insights...")
+
+    week_start, week_end = get_week_bounds()
 
     posts_data = []
     for i, post in enumerate(posts):
@@ -115,7 +170,7 @@ def main():
             "media_type": media_type,
             "media_url":  post.get("media_url", ""),
             "thumb_url":  thumb_url,
-            "post_date":  post.get("timestamp", "")[:10],
+            "post_date":  post_date,
             "caption":    post.get("caption", ""),
         })
 
@@ -125,10 +180,17 @@ def main():
     added, updated = sheets.upsert_posts(posts_data)
     print(f"Posts: {added} new, {updated} updated")
 
+    print("Sorting posts by score...")
+    sheets.sort_posts_by_score()
+
+    # Count posts published this week
+    posts_this_week = sum(
+        1 for p in posts
+        if p.get("timestamp", "")[:10] >= week_start.isoformat()
+    )
+
     # --- Weekly metrics ---
     print("Fetching weekly account metrics...")
-    week_start, week_end, _, _ = get_week_bounds()
-
     account = ig.get_account_insights()
     followers = ig.get_follower_count()
 
@@ -136,14 +198,36 @@ def main():
     net_follows = (followers - prev_followers) if prev_followers is not None else 0
 
     sheets.upsert_weekly_row({
-        "week_start":    week_start.strftime("%b-%d"),
-        "week_end":      week_end.strftime("%b-%d"),
-        "reach_total":   account.get("reach", 0),
-        "organic_reach": account.get("organic_reach", 0),
-        "profile_views": account.get("profile_views", 0),
-        "followers":     followers,
-        "net_follows":   net_follows,
+        "week_start":      week_start.strftime("%b-%d"),
+        "week_end":        week_end.strftime("%b-%d"),
+        "reach_total":     account.get("reach", 0),
+        "organic_reach":   account.get("organic_reach", 0),
+        "profile_views":   account.get("profile_views", 0),
+        "followers":       followers,
+        "net_follows":     net_follows,
+        "posts_published": posts_this_week,
     })
+
+    # --- Story metrics ---
+    sheets.upsert_weekly_story_row({
+        "week_start":  week_start.strftime("%b-%d"),
+        "week_end":    week_end.strftime("%b-%d"),
+        "story_reach": account.get("story_reach", 0),
+    })
+
+    # --- AI Insights ---
+    print("Generating AI insights...")
+    analysis = generate_ai_insights(
+        posts_data,
+        week_start.strftime("%b %d"),
+        week_end.strftime("%b %d")
+    )
+    if analysis:
+        sheets.write_ai_insights(week_start.strftime("%b-%d"), analysis)
+        print("  AI insights written")
+    else:
+        print("  AI insights skipped (no API key or no scored posts)")
+
     print(f"Weekly metrics: {week_start.strftime('%b %d')} – {week_end.strftime('%b %d')}")
     print("Sync complete!")
 

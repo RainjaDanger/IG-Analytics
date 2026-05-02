@@ -105,14 +105,19 @@ class InstagramClient:
             for metric in data.get("data", []):
                 total = 0
                 organic = 0
+                story = 0
                 for breakdown in metric.get("total_value", {}).get("breakdowns", []):
                     for item in breakdown.get("results", []):
                         val = item.get("value", 0)
+                        media_type = item.get("dimension_values", [""])[0]
                         total += val
-                        if item.get("dimension_values", [""])[0] != "AD":
+                        if media_type != "AD":
                             organic += val
+                        if media_type == "STORY":
+                            story = val
                 result["reach"] = total
                 result["organic_reach"] = organic
+                result["story_reach"] = story
         except HTTPError as e:
             try:
                 detail = e.response.json().get("error", {})
