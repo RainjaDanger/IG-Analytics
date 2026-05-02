@@ -34,8 +34,10 @@ class InstagramClient:
 
     def refresh_token(self):
         r = requests.get(f"{BASE}/oauth/access_token", params={
-            "grant_type": "ig_refresh_token",
-            "access_token": self.token
+            "grant_type": "fb_exchange_token",
+            "client_id": self.app_id,
+            "client_secret": self.app_secret,
+            "fb_exchange_token": self.token,
         }, timeout=30)
         r.raise_for_status()
         self.token = r.json()["access_token"]
@@ -58,10 +60,12 @@ class InstagramClient:
         return posts
 
     def get_post_insights(self, media_id, media_type):
-        if media_type in ("VIDEO", "REEL"):
+        if media_type == "REEL":
             metrics = "reach,saved,video_views"
+        elif media_type == "VIDEO":
+            metrics = "reach,saved"
         elif media_type == "CAROUSEL_ALBUM":
-            metrics = "carousel_album_reach,carousel_album_saved"
+            metrics = "reach,saved"
         else:
             metrics = "reach,saved"
 
@@ -69,7 +73,7 @@ class InstagramClient:
             data = self._get(f"{media_id}/insights", {"metric": metrics})
             result = {}
             for item in data.get("data", []):
-                name = item["name"].replace("carousel_album_", "")
+                name = item["name"]
                 values = item.get("values", [{}])
                 result[name] = values[0].get("value", 0) if values else item.get("value", 0)
             return result

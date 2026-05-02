@@ -90,10 +90,15 @@ def main():
     posts_data = []
     for i, post in enumerate(posts):
         media_type = post.get("media_type", "IMAGE")
-        insights = ig.get_post_insights(post["id"], media_type)
+        post_date = post.get("timestamp", "")[:10]
+        age_days = (date.today() - date.fromisoformat(post_date)).days if post_date else 0
+        insights = ig.get_post_insights(post["id"], media_type) if age_days <= 730 else {}
 
-        if media_type in ("VIDEO", "REEL"):
+        if media_type == "REEL":
             views = insights.get("video_views", 0)
+            thumb_url = post.get("thumbnail_url") or post.get("media_url", "")
+        elif media_type == "VIDEO":
+            views = insights.get("reach", 0)
             thumb_url = post.get("thumbnail_url") or post.get("media_url", "")
         else:
             views = insights.get("reach", 0)
