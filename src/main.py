@@ -219,6 +219,9 @@ def main():
         "story_reach": account.get("story_reach", 0),
     })
 
+    print("Sorting weekly sheets by date...")
+    sheets.sort_weekly_by_date()
+
     # --- AI Insights ---
     print("Generating AI insights...")
     analysis = generate_ai_insights(

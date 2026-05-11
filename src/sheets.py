@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 
@@ -309,6 +309,40 @@ class SheetsClient:
             valueInputOption="USER_ENTERED",
             body={"values": values}
         ).execute()
+
+    def _parse_week_date(self, week_str):
+        """Parse 'Mon-DD' (e.g. 'Apr-27') to a datetime, handling year-wrap."""
+        try:
+            d = datetime.strptime(week_str, "%b-%d").replace(year=datetime.now().year)
+            if d > datetime.now() + timedelta(days=180):
+                d = d.replace(year=d.year - 1)
+            return d
+        except Exception:
+            return datetime.min
+
+    def sort_weekly_by_date(self):
+        for sheet_name in [WEEKLY_SHEET, STORY_SHEET]:
+            result = self.sheets.values().get(
+                spreadsheetId=self.ss_id,
+                range=f"'{sheet_name}'!A:Z"
+            ).execute()
+            rows = result.get("values", [])
+            if len(rows) < 3:
+                continue
+
+            data = [r for r in rows[1:] if r]
+            data.sort(key=lambda r: self._parse_week_date(r[0]) if r else datetime.min)
+
+            self.sheets.values().clear(
+                spreadsheetId=self.ss_id,
+                range=f"'{sheet_name}'!A2:Z"
+            ).execute()
+            self.sheets.values().update(
+                spreadsheetId=self.ss_id,
+                range=f"'{sheet_name}'!A2",
+                valueInputOption="USER_ENTERED",
+                body={"values": data}
+            ).execute()
 
     def write_ai_insights(self, week_start, analysis):
         result = self.sheets.values().get(
