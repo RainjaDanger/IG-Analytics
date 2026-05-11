@@ -49,9 +49,13 @@ def update_github_secret(new_token):
 
 
 def get_week_bounds():
-    today = date.today()
-    week_start = today - timedelta(days=today.weekday())  # Monday
-    week_end = week_start + timedelta(days=6)             # Sunday
+    override = os.environ.get("WEEK_START_DATE")
+    if override:
+        week_start = date.fromisoformat(override)
+    else:
+        today = date.today()
+        week_start = today - timedelta(days=today.weekday())  # Monday
+    week_end = week_start + timedelta(days=6)
     return week_start, week_end
 
 

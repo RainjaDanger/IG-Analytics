@@ -3,7 +3,12 @@ name: Instagram Analytics Sync
 on:
   schedule:
     - cron: '0 20 * * 1'  # 6am AEST (UTC+10) every Monday
-  workflow_dispatch:       # Allow manual runs from GitHub UI
+  workflow_dispatch:
+    inputs:
+      week_start_date:
+        description: 'Week start date (YYYY-MM-DD, must be a Monday). Leave empty for current week.'
+        required: false
+        default: ''
 
 jobs:
   sync:
@@ -33,4 +38,5 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPO: ${{ github.repository }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          WEEK_START_DATE: ${{ github.event.inputs.week_start_date }}
         run: python src/main.py
