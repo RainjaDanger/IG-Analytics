@@ -223,19 +223,28 @@ class SheetsClient:
         updated = len(posts_data) - added
         return added, updated
 
-    def get_previous_follower_count(self, current_week_start):
+    def get_previous_follower_count(self, week_start_date):
         result = self.sheets.values().get(
             spreadsheetId=self.ss_id,
             range=f"'{WEEKLY_SHEET}'!A:H"
         ).execute()
         rows = result.get("values", [])
-        for row in reversed(rows[1:]):
-            if row and row[0] != current_week_start and len(row) >= 6:
+        best_date = None
+        best_followers = None
+        for row in rows[1:]:
+            if not row or len(row) < 6:
+                continue
+            row_date = self._parse_week_date(row[0])
+            row_as_date = row_date.date()
+            if row_as_date >= week_start_date:
+                continue
+            if best_date is None or row_as_date > best_date:
                 try:
-                    return int(row[5])
+                    best_date = row_as_date
+                    best_followers = int(row[5])
                 except (ValueError, IndexError):
                     pass
-        return None
+        return best_followers
 
     def upsert_weekly_row(self, week_data):
         result = self.sheets.values().get(
@@ -321,27 +330,32 @@ class SheetsClient:
             return datetime.min
 
     def sort_weekly_by_date(self):
+        meta = self.sheets.get(
+            spreadsheetId=self.ss_id,
+            fields="sheets(properties(sheetId,title))"
+        ).execute()
+        sheet_ids = {s["properties"]["title"]: s["properties"]["sheetId"] for s in meta["sheets"]}
+
+        requests = []
         for sheet_name in [WEEKLY_SHEET, STORY_SHEET]:
-            result = self.sheets.values().get(
-                spreadsheetId=self.ss_id,
-                range=f"'{sheet_name}'!A:Z"
-            ).execute()
-            rows = result.get("values", [])
-            if len(rows) < 3:
+            sheet_id = sheet_ids.get(sheet_name)
+            if sheet_id is None:
                 continue
+            requests.append({
+                "sortRange": {
+                    "range": {
+                        "sheetId": sheet_id,
+                        "startRowIndex": 1,
+                        "startColumnIndex": 0,
+                    },
+                    "sortSpecs": [{"dimensionIndex": 0, "sortOrder": "ASCENDING"}]
+                }
+            })
 
-            data = [r for r in rows[1:] if r]
-            data.sort(key=lambda r: self._parse_week_date(r[0]) if r else datetime.min)
-
-            self.sheets.values().clear(
+        if requests:
+            self.sheets.batchUpdate(
                 spreadsheetId=self.ss_id,
-                range=f"'{sheet_name}'!A2:Z"
-            ).execute()
-            self.sheets.values().update(
-                spreadsheetId=self.ss_id,
-                range=f"'{sheet_name}'!A2",
-                valueInputOption="USER_ENTERED",
-                body={"values": data}
+                body={"requests": requests}
             ).execute()
 
     def write_ai_insights(self, week_start, analysis):

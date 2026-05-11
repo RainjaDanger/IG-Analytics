@@ -187,10 +187,10 @@ def main():
     print("Sorting posts by score...")
     sheets.sort_posts_by_score()
 
-    # Count posts published this week
+    # Count posts published in this specific week only
     posts_this_week = sum(
         1 for p in posts
-        if p.get("timestamp", "")[:10] >= week_start.isoformat()
+        if week_start.isoformat() <= p.get("timestamp", "")[:10] <= week_end.isoformat()
     )
 
     # --- Weekly metrics ---
@@ -198,7 +198,7 @@ def main():
     account = ig.get_account_insights()
     followers = ig.get_follower_count()
 
-    prev_followers = sheets.get_previous_follower_count(week_start.strftime("%b-%d"))
+    prev_followers = sheets.get_previous_follower_count(week_start)
     net_follows = (followers - prev_followers) if prev_followers is not None else 0
 
     sheets.upsert_weekly_row({
