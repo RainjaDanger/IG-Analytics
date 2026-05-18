@@ -54,7 +54,11 @@ def get_week_bounds():
         week_start = date.fromisoformat(override)
     else:
         today = date.today()
-        week_start = today - timedelta(days=today.weekday())  # Monday
+        # Always capture the most recently completed Mon-Sun week.
+        # Works correctly whether the runner sees Sunday (cron) or Mon+ (manual).
+        days_since_sunday = (today.weekday() + 1) % 7
+        last_sunday = today - timedelta(days=days_since_sunday)
+        week_start = last_sunday - timedelta(days=6)
     week_end = week_start + timedelta(days=6)
     return week_start, week_end
 
