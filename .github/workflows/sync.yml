@@ -2,7 +2,7 @@ name: Instagram Analytics Sync
 
 on:
   schedule:
-    - cron: '0 20 * * 1'  # 6am AEST (UTC+10) every Monday
+    - cron: '0 20 * * 0'  # 6am AEST (UTC+10) every Monday (Sunday 20:00 UTC)
   workflow_dispatch:
     inputs:
       week_start_date:
