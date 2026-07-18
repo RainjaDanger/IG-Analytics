@@ -9,11 +9,11 @@ def update_github_secret(new_token):
     import base64
     import requests
 
-    github_token = os.environ.get("GITHUB_TOKEN")
+    github_token = os.environ.get("GH_PAT")
     repo = os.environ.get("GITHUB_REPO")
 
     if not github_token or not repo:
-        print("  Set GITHUB_TOKEN and GITHUB_REPO to enable auto-refresh")
+        print("  Set GH_PAT and GITHUB_REPO to enable auto-refresh")
         return
 
     try:
@@ -25,10 +25,12 @@ def update_github_secret(new_token):
             "X-GitHub-Api-Version": "2022-11-28",
         }
 
-        pk = requests.get(
+        pk_resp = requests.get(
             f"https://api.github.com/repos/{repo}/actions/secrets/public-key",
             headers=headers, timeout=10
-        ).json()
+        )
+        pk_resp.raise_for_status()
+        pk = pk_resp.json()
 
         pub_key = public.PublicKey(pk["key"].encode(), encoding.Base64Encoder())
         encrypted = base64.b64encode(
@@ -172,6 +174,7 @@ def main():
             "permalink":  post.get("permalink", ""),
             "likes":      post.get("like_count", 0),
             "comments":   post.get("comments_count", 0),
+            "reshares":   insights.get("shares", 0),
             "views":      views,
             "reach":      insights.get("reach", 0),
             "saves":      insights.get("saved", 0),

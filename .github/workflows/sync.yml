@@ -35,7 +35,7 @@ jobs:
           META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
           GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_PAT: ${{ secrets.GH_PAT }}
           GITHUB_REPO: ${{ github.repository }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           WEEK_START_DATE: ${{ github.event.inputs.week_start_date }}

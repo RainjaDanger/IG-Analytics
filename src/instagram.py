@@ -28,6 +28,13 @@ class InstagramClient:
             if not expires_at:
                 return 999
             return (datetime.fromtimestamp(expires_at) - datetime.now()).days
+        except HTTPError as e:
+            try:
+                detail = e.response.json().get("error", {})
+                print(f"  Could not check token expiry: [{detail.get('code')}] {detail.get('message')}")
+            except Exception:
+                print(f"  Could not check token expiry: {e}")
+            return 999
         except Exception as e:
             print(f"  Could not check token expiry: {e}")
             return 999
@@ -51,7 +58,15 @@ class InstagramClient:
 
         while url:
             r = requests.get(url, params=params, timeout=30)
-            r.raise_for_status()
+            try:
+                r.raise_for_status()
+            except HTTPError:
+                try:
+                    detail = r.json().get("error", {})
+                    print(f"  Posts fetch error: [{detail.get('code')}] {detail.get('message')}")
+                except Exception:
+                    pass
+                raise
             data = r.json()
             posts.extend(data.get("data", []))
             url = data.get("paging", {}).get("next")
@@ -61,13 +76,13 @@ class InstagramClient:
 
     def get_post_insights(self, media_id, media_type):
         if media_type == "REEL":
-            metrics = "reach,saved,video_views"
+            metrics = "reach,saved,shares,video_views"
         elif media_type == "VIDEO":
-            metrics = "reach,saved"
+            metrics = "reach,saved,shares"
         elif media_type == "CAROUSEL_ALBUM":
-            metrics = "reach,saved"
+            metrics = "reach,saved,shares"
         else:
-            metrics = "reach,saved"
+            metrics = "reach,saved,shares"
 
         try:
             data = self._get(f"{media_id}/insights", {"metric": metrics})

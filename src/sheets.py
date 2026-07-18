@@ -11,7 +11,7 @@ STORY_SHEET = "Weekly Story Metrics"
 INSIGHTS_SHEET = "AI Insights"
 
 POST_HEADERS = [
-    "Post URL", "Likes", "Comments", "Views", "Reach", "Saves",
+    "Post URL", "Likes", "Comments", "Reshares", "Views", "Reach", "Saves",
     "Type", "Media URL", "Thumbnail URL", "Post Date", "Caption",
     "Thumbnail", "Days Live", "Score", "Hook", "Format"
 ]
@@ -62,6 +62,8 @@ class SheetsClient:
                 spreadsheetId=self.ss_id, body={"requests": requests}
             ).execute()
 
+        self._migrate_reshares_column(existing.get(POST_SHEET))
+
         # Ensure correct headers on all sheets
         for name, headers in [
             (POST_SHEET, POST_HEADERS),
@@ -83,6 +85,47 @@ class SheetsClient:
                     body={"values": [headers]}
                 ).execute()
                 print(f"  Updated headers on '{name}'")
+
+    def _migrate_reshares_column(self, sheet_id):
+        """One-time structural insert so pre-existing data/formulas/manual
+        Hook+Format annotations shift right instead of getting relabeled in place."""
+        if sheet_id is None:
+            return
+
+        result = self.sheets.values().get(
+            spreadsheetId=self.ss_id,
+            range=f"'{POST_SHEET}'!A1:Z1"
+        ).execute()
+        current = result.get("values", [[]])[0] if result.get("values") else []
+
+        if not current or "Reshares" in current or "Views" not in current:
+            return
+
+        views_index = current.index("Views")
+        backup_name = f"Post Performance backup {datetime.now().strftime('%Y-%m-%d')}"
+        self.sheets.batchUpdate(
+            spreadsheetId=self.ss_id,
+            body={"requests": [
+                {
+                    "duplicateSheet": {
+                        "sourceSheetId": sheet_id,
+                        "newSheetName": backup_name,
+                    }
+                },
+                {
+                    "insertDimension": {
+                        "range": {
+                            "sheetId": sheet_id,
+                            "dimension": "COLUMNS",
+                            "startIndex": views_index,
+                            "endIndex": views_index + 1,
+                        },
+                        "inheritFromBefore": False,
+                    }
+                },
+            ]}
+        ).execute()
+        print(f"  Backed up 'Post Performance' to '{backup_name}' and inserted 'Reshares' column")
 
     def apply_score_formatting(self):
         meta = self.sheets.get(
@@ -179,6 +222,9 @@ class SheetsClient:
         ).execute()
         next_row = len(result.get("values", [])) + 1
 
+        col = lambda name: chr(65 + POST_HEADERS.index(name))
+        last_col = col("Score")
+
         updates = []
 
         for post in posts_data:
@@ -187,6 +233,7 @@ class SheetsClient:
                 url,
                 post["likes"],
                 post["comments"],
+                post["reshares"],
                 post["views"],
                 post["reach"],
                 post["saves"],
@@ -204,12 +251,19 @@ class SheetsClient:
                 next_row += 1
 
             formula_cols = [
-                f"=IMAGE(I{row_num})",
-                f"=MAX(1,INT(TODAY()-DATEVALUE(J{row_num})))",
-                f'=IFERROR(((B{row_num}*10)+(C{row_num}*20)+D{row_num})/M{row_num},"")',
+                f"=IMAGE({col('Thumbnail URL')}{row_num})",
+                f"=MAX(1,INT(TODAY()-DATEVALUE({col('Post Date')}{row_num})))",
+                (
+                    f'=IFERROR((({col("Likes")}{row_num}*10)'
+                    f'+({col("Comments")}{row_num}*20)'
+                    f'+({col("Reshares")}{row_num}*30)'
+                    f'+{col("Views")}{row_num}'
+                    f'+{col("Saves")}{row_num})'
+                    f'/{col("Days Live")}{row_num},"")'
+                ),
             ]
             updates.append({
-                "range": f"'{POST_SHEET}'!A{row_num}:N{row_num}",
+                "range": f"'{POST_SHEET}'!A{row_num}:{last_col}{row_num}",
                 "values": [data_cols + formula_cols]
             })
 
