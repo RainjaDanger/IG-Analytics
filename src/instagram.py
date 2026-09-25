@@ -19,36 +19,36 @@ class InstagramClient:
         return r.json()
 
     def token_days_remaining(self):
+        """Days until the access token expires, None if it never expires.
+
+        Raises RuntimeError if Meta reports the token as expired or invalid.
+        """
         try:
             data = self._get("debug_token", {
                 "input_token": self.token,
                 "access_token": f"{self.app_id}|{self.app_secret}"
             })
-            expires_at = data.get("data", {}).get("expires_at", 0)
-            if not expires_at:
-                return 999
-            return (datetime.fromtimestamp(expires_at) - datetime.now()).days
         except HTTPError as e:
             try:
                 detail = e.response.json().get("error", {})
-                print(f"  Could not check token expiry: [{detail.get('code')}] {detail.get('message')}")
             except Exception:
-                print(f"  Could not check token expiry: {e}")
-            return 999
-        except Exception as e:
-            print(f"  Could not check token expiry: {e}")
-            return 999
-
-    def refresh_token(self):
-        r = requests.get(f"{BASE}/oauth/access_token", params={
-            "grant_type": "fb_exchange_token",
-            "client_id": self.app_id,
-            "client_secret": self.app_secret,
-            "fb_exchange_token": self.token,
-        }, timeout=30)
-        r.raise_for_status()
-        self.token = r.json()["access_token"]
-        return self.token
+                detail = {}
+            if detail.get("code") == 190:
+                raise RuntimeError(
+                    f"Instagram access token is expired or invalid: {detail.get('message')}\n"
+                    "Generate a new token and update the INSTAGRAM_ACCESS_TOKEN repo secret."
+                ) from e
+            raise
+        info = data.get("data", {})
+        if not info.get("is_valid", True):
+            raise RuntimeError(
+                "Instagram access token is invalid. "
+                "Generate a new token and update the INSTAGRAM_ACCESS_TOKEN repo secret."
+            )
+        expires_at = info.get("expires_at", 0)
+        if not expires_at:
+            return None
+        return (datetime.fromtimestamp(expires_at) - datetime.now()).days
 
     def get_posts(self):
         posts = []

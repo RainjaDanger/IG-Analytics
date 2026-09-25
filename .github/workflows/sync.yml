@@ -14,10 +14,23 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write  # for the keepalive commit
 
     steps:
       - uses: actions/checkout@v4
+
+      # GitHub disables scheduled workflows after 60 days without repo activity
+      - name: Keep workflow alive
+        if: github.event_name == 'schedule'
+        run: |
+          days_since=$(( ($(date +%s) - $(git log -1 --format=%ct)) / 86400 ))
+          echo "Days since last commit: $days_since"
+          if [ "$days_since" -ge 45 ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+            git commit --allow-empty -m "Keepalive: prevent scheduled workflow auto-disable"
+            git push
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -35,8 +48,6 @@ jobs:
           META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
           GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
-          GH_PAT: ${{ secrets.GH_PAT }}
-          GITHUB_REPO: ${{ github.repository }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           WEEK_START_DATE: ${{ github.event.inputs.week_start_date }}
         run: python src/main.py

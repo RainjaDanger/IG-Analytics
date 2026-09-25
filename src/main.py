@@ -1,53 +1,11 @@
 import os
+import sys
 from datetime import datetime, timedelta, date
 
 from instagram import InstagramClient
 from sheets import SheetsClient
 
-
-def update_github_secret(new_token):
-    import base64
-    import requests
-
-    github_token = os.environ.get("GH_PAT")
-    repo = os.environ.get("GITHUB_REPO")
-
-    if not github_token or not repo:
-        print("  Set GH_PAT and GITHUB_REPO to enable auto-refresh")
-        return
-
-    try:
-        from nacl import encoding, public
-
-        headers = {
-            "Authorization": f"Bearer {github_token}",
-            "Accept": "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-        }
-
-        pk_resp = requests.get(
-            f"https://api.github.com/repos/{repo}/actions/secrets/public-key",
-            headers=headers, timeout=10
-        )
-        pk_resp.raise_for_status()
-        pk = pk_resp.json()
-
-        pub_key = public.PublicKey(pk["key"].encode(), encoding.Base64Encoder())
-        encrypted = base64.b64encode(
-            public.SealedBox(pub_key).encrypt(new_token.encode())
-        ).decode()
-
-        requests.put(
-            f"https://api.github.com/repos/{repo}/actions/secrets/INSTAGRAM_ACCESS_TOKEN",
-            headers=headers,
-            json={"encrypted_value": encrypted, "key_id": pk["key_id"]},
-            timeout=10
-        ).raise_for_status()
-
-        print("  Token auto-refreshed and saved to GitHub secrets")
-    except Exception as e:
-        print(f"  Auto-refresh failed: {e}")
-        print("  Manually update INSTAGRAM_ACCESS_TOKEN in your repo secrets")
+TOKEN_WARN_DAYS = 14
 
 
 def get_week_bounds():
@@ -133,13 +91,12 @@ def main():
         spreadsheet_id=os.environ["SPREADSHEET_ID"],
     )
 
-    # Token refresh check
+    # Token expiry check (long-lived user tokens can't be extended; a System User token never expires)
     days_left = ig.token_days_remaining()
-    print(f"Token expires in {days_left} days")
-    if days_left < 10:
-        print("Refreshing token...")
-        new_token = ig.refresh_token()
-        update_github_secret(new_token)
+    if days_left is None:
+        print("Token never expires")
+    else:
+        print(f"Token expires in {days_left} days")
 
     # Ensure all tabs exist with correct structure
     print("Checking sheet structure...")
@@ -244,6 +201,12 @@ def main():
 
     print(f"Weekly metrics: {week_start.strftime('%b %d')} – {week_end.strftime('%b %d')}")
     print("Sync complete!")
+
+    # Fail the run (so GitHub emails a notification) while the token is close to expiry
+    if days_left is not None and days_left < TOKEN_WARN_DAYS:
+        print(f"::error::Instagram access token expires in {days_left} days. "
+              "Replace INSTAGRAM_ACCESS_TOKEN with a new token (ideally a non-expiring System User token).")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
