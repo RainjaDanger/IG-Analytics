@@ -2,6 +2,7 @@ import os
 import sys
 from datetime import datetime, timedelta, date
 
+import thumbnails
 from instagram import InstagramClient
 from sheets import SheetsClient
 
@@ -119,13 +120,19 @@ def main():
 
         if media_type == "REEL":
             views = insights.get("video_views", 0)
-            thumb_url = post.get("thumbnail_url") or post.get("media_url", "")
-        elif media_type == "VIDEO":
-            views = insights.get("reach", 0)
-            thumb_url = post.get("thumbnail_url") or post.get("media_url", "")
         else:
             views = insights.get("reach", 0)
-            thumb_url = post.get("media_url", "")
+
+        # Videos need their cover image; a carousel's media_url is its first
+        # slide, which may itself be a video, so use that slide's cover instead
+        source = post
+        if media_type == "CAROUSEL_ALBUM":
+            source = (post.get("children", {}).get("data") or [post])[0]
+        if source.get("media_type") in ("VIDEO", "REEL"):
+            image_url = source.get("thumbnail_url", "")
+        else:
+            image_url = source.get("media_url", "")
+        thumb_url = thumbnails.ensure_thumbnail(post["id"], image_url) or ""
 
         posts_data.append({
             "permalink":  post.get("permalink", ""),
@@ -144,6 +151,9 @@ def main():
 
         if (i + 1) % 10 == 0:
             print(f"  {i + 1}/{len(posts)} processed")
+
+    print("Publishing thumbnails...")
+    thumbnails.publish()
 
     added, updated = sheets.upsert_posts(posts_data)
     print(f"Posts: {added} new, {updated} updated")

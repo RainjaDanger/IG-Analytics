@@ -52,7 +52,10 @@ class InstagramClient:
 
     def get_posts(self):
         posts = []
-        fields = "id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count"
+        fields = (
+            "id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count,"
+            "children{media_type,media_url,thumbnail_url}"
+        )
         url = f"{BASE}/{self.user_id}/media"
         params = {"fields": fields, "limit": 100, "access_token": self.token}
 
